@@ -1,0 +1,133 @@
+---
+title: "assignment-1-creating-reproducible-reports-Boogipop233"
+author: "Xijun Wei"
+format:
+  html: default
+  pdf: default
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+```{r}
+#| label: setup
+#| include: false
+library(tinytex)
+library(tidyverse)
+library(lubridate)
+```
+
+# Introduction
+
+The report focuses on whether an increase in marketing expenditure per customer was related to increased purchase quantities in a personalised marketing campaign. It is significant to understand this relationship since marketing budgets should in ideal sense create better customer spending results. The data set captures customer campaign data on a customer basis in terms of marketing expenditure, visits, and purchase values. This is intended to rely on the need to use the campaign data as the primary evidence when analyzing whether the greater investment in customer level marketing is effective.
+
+# Research Question
+
+The key question of this report is: is there any relationship between increased marketing expenditure per customer and increased purchase levels? To be more precise, I investigate the question of whether or not the customers who were exposed to more marketing expenditure made bigger purchases. I also apply descriptive summaries to determine whether this trend is widely applicable throughout the data.
+
+# Data Introduction
+
+The data record consists of customer-level data of a recent marketing campaign. It contains identifiers, signup dates, amount spent on marketing, web site visits, amount spent on purchases, customer segment, and campaign notes. Marketing_spend and purchase_amount are considered the key variables of this report as they directly answer the research question. The visits and segment variables are an added information regarding customer behaviour and group distinctions. The dataset needed a simple cleaning since there were dates that were in mixed formats and purchase amounts that were not available.
+
+```{r}
+#| label: data-inspect
+#| include: false
+# Read in the data
+marketing_raw <- read_csv("data/31418422_Xijun Wei.csv")
+# View the data
+view(marketing_raw)
+# Check the structure of the data
+str(marketing_raw)
+# Check for missing values
+colSums(is.na(marketing_raw))
+```
+
+```{r}
+#| label: data-summary
+# Summary statistics of the data
+head(marketing_raw)
+summary(marketing_raw)
+```
+
+# Data Discription
+
+```{r}
+#| label: fig-box-segment
+#| fig-cap: "Boxplot of purchase amount by customer segment." 
+ggplot(marketing_raw, aes(x = segment, y = purchase_amount, fill = segment)) +
+  geom_boxplot() +
+  labs(
+    x = "Customer Segment",
+    y = "Purchase Amount",
+    fill = "Customer Segment"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "none")
+```
+
+There were three major steps in data cleaning process. To begin with, the signup date variable was transformed into a uniform date format since the original file had mixed date formats. Second, the variable of customer segment was changed to a categorical variable to be summarised easily. Third, the rows that had no purchase amounts were taken out since the response variable is a key to the research question.
+
+```{r}
+#| label: data-clean
+# Clean the data
+marketing <- marketing_raw %>%
+  mutate(
+    signup_date = str_trim(signup_date),
+    signup_date = parse_date_time(
+      signup_date,
+      orders = c("Y-m-d", "d/m/Y", "b d, Y")
+    ) |> as_date(),
+    segment = as.factor(segment)
+  ) %>%
+  filter(!is.na(purchase_amount))
+summary(marketing)
+```
+
+The cleaned data set has `r nrow(marketing)` observations, and `r ncol(marketing)` variables. The original dataset contained a `r nrow(marketing_raw)` observations, and therefore a difference between `r nrow(marketing_raw)`, and `r nrow(marketing)` rows was eliminated as a result of missing purchase values.
+
+```{r}
+#| label: tbl-segment-summary
+#| tbl-cap: "Summary statistics by customer segment."
+segment_summary <- marketing %>%
+  group_by(segment) %>%
+  summarise(
+    count = n(),
+    avg_purchase = mean(purchase_amount, na.rm = TRUE),
+    avg_marketing = mean(marketing_spend, na.rm = TRUE),
+    avg_visits = mean(visits, na.rm = TRUE),
+    .groups = "drop"
+  )
+segment_summary
+```
+
+As indicated in Table @tbl-segment-summary, the largest segment of the cleaned data is the Consumer group. Enterprise customers are the ones with the highest average purchase and average marketing spend is comparatively the same across the segments. This implies that segment composition may not be the sole cause of variations in the amount of purchases made.
+
+To quantify this relationship, I fitted a simple linear regression of purchase amount on marketing spend.
+
+# Results
+
+```{r}
+#| label: fig-scatter
+#| fig-cap: "Purchase amount versus marketing spend, with a fitted linear trend."
+ggplot(marketing, aes(x = marketing_spend, y = purchase_amount)) +
+  geom_point(alpha = 0.7) +
+  geom_smooth(method = "lm", se = TRUE) +
+  labs(
+    x = "Marketing spend per customer",
+    y = "Purchase amount"
+  ) +
+  theme_minimal()
+```
+
+```{r}
+#| label: model-fit
+model_1 <- lm(purchase_amount ~ marketing_spend, data = marketing)
+summary(model_1)
+corr_value <- cor(marketing$marketing_spend, marketing$purchase_amount)
+corr_value
+```
+
+The correlation coefficient between marketing expenditure and purchase is r round(corr_value, 3), which implies that there is a strong positive relationship. The estimate of the regression slope is r round(model_1$Estimate[2], 3) in that an increase in marketing spend by one unit will result on an average increase in purchase amount of about r round(model_1$Estimate\[2\], 3) units. This is statistically significant ( p \< 0.001) and the model accounts approximately r round(model_1\$r.squared, 3) of the change in the amount of purchases. On the whole, the data in this report indicates that an increased marketing expenditure per customer did increase the quantity of purchase in this campaign.
+
+This report established a solid evidence that the greater the marketing expenditure, the greater the purchase quantities. The visualisations, and the regression analysis, both indicate a positive relationship is evident. This analysis is observational and does not establish causality in a perfect way, but the data on the campaign convincingly supports the conclusion that those customers who were better exposed to marketing were more likely to spend more. Thus, in such a set of data, increased marketing investment per-customer seems to have worked.
